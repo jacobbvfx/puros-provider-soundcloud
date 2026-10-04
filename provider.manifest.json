@@ -1,0 +1,245 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "soundcloud",
+  "version": "1.0.0",
+  "displayName": "SoundCloud",
+  "description": "SoundCloud catalog, likes, playlists and playback. Works signed out for public tracks; sign in for your library and SoundCloud Go+ streams. Audio is the stream SoundCloud serves (AAC or MP3, never re-encoded), or optionally the artist's original upload when downloads are enabled.",
+  "homepage": "https://soundcloud.com",
+  "icon": "assets/icon.svg",
+  "brandColor": "#FF5500",
+  "defaultPriority": 70,
+  "librarySyncMode": "host-mirror",
+  "playbackTimeoutMs": 900000,
+  "requiredHostFeatures": [
+    "settings.form",
+    "auth.browser-session"
+  ],
+  "capabilities": [
+    "auth",
+    "catalog.search",
+    "catalog.entities",
+    "catalog.home",
+    "library.sync",
+    "playlists",
+    "playback.resolve",
+    "playback.prefetch",
+    "metadata.artwork",
+    "metadata.bio",
+    "metadata.credits"
+  ],
+  "settings": [
+    {
+      "id": "connection-status",
+      "label": "Account",
+      "type": "status",
+      "statusKey": "account"
+    },
+    {
+      "id": "playback-status",
+      "label": "Playback",
+      "type": "status",
+      "statusKey": "playback"
+    },
+    {
+      "id": "sign-in",
+      "label": "Sign in with SoundCloud",
+      "description": "Opens soundcloud.com in a private window. Sign in with your email and password; Google, Apple and Facebook buttons open pop-ups that this window does not allow — use \"Connect with a token\" for those accounts.",
+      "type": "action",
+      "action": {
+        "capability": "auth",
+        "method": "login",
+        "args": [
+          {
+            "step": "browser"
+          }
+        ]
+      }
+    },
+    {
+      "id": "connect",
+      "label": "Connect with a token",
+      "description": "Paste the oauth_token cookie of a signed-in soundcloud.com tab (the method scdl and yt-dlp use). Works for every sign-in method.",
+      "type": "form",
+      "instructions": [
+        "Sign in at soundcloud.com in your browser.",
+        "Open the developer tools (Chrome: View → Developer → Developer Tools; Safari: turn on \"Show features for web developers\" in Settings → Advanced first).",
+        "Chrome: Application → Cookies → https://soundcloud.com. Safari: Storage → Cookies. Firefox: Storage → Cookies.",
+        "Copy the value of the cookie named oauth_token (it looks like 2-123456-123456789-AbCdEfGh…) and paste it below.",
+        "Select Connect. Puros checks the token with SoundCloud and shows \"Connected as\" with your profile name. Signing out on soundcloud.com ends the token; then repeat these steps."
+      ],
+      "fields": [
+        {
+          "id": "oauth-token",
+          "label": "oauth_token",
+          "placeholder": "2-123456-123456789-AbCdEfGhIjKlMn",
+          "sensitive": true,
+          "required": true,
+          "maxLength": 512
+        }
+      ],
+      "submit": {
+        "label": "Connect",
+        "capability": "auth",
+        "method": "login"
+      }
+    },
+    {
+      "id": "audio-source",
+      "label": "Audio source",
+      "description": "Original uploads are the files artists offer for download (often WAV, AIFF or FLAC). Fetching one counts as a download on the artist's track and is only possible while it has downloads left; otherwise Puros plays the stream.",
+      "type": "select",
+      "key": "audio-source",
+      "storage": "setting",
+      "options": [
+        {
+          "value": "stream",
+          "label": "Best stream (AAC 160/256 kb/s or MP3 128 kb/s)"
+        },
+        {
+          "value": "original",
+          "label": "Original upload when the artist allows downloads"
+        }
+      ],
+      "defaultValue": "stream"
+    },
+    {
+      "id": "sync",
+      "label": "Sync library",
+      "type": "action",
+      "action": {
+        "capability": "library.sync",
+        "method": "enumerate",
+        "args": [
+          {}
+        ]
+      }
+    },
+    {
+      "id": "disconnect",
+      "label": "Disconnect",
+      "description": "Deletes the saved token from this Mac. Your SoundCloud sign-in in the browser is not affected.",
+      "type": "action",
+      "action": {
+        "capability": "auth",
+        "method": "logout"
+      },
+      "destructive": true
+    }
+  ],
+  "permissions": {
+    "networkOrigins": [
+      "https://soundcloud.com",
+      "https://api-v2.soundcloud.com",
+      "https://a-v2.sndcdn.com",
+      "https://*.sndcdn.com",
+      "https://*.media-streaming.soundcloud.cloud"
+    ],
+    "externalOrigins": [
+      "https://soundcloud.com"
+    ],
+    "secrets": [
+      "session"
+    ],
+    "authCollections": [
+      {
+        "id": "soundcloud-sign-in",
+        "allowedOrigins": [
+          "https://soundcloud.com",
+          "https://secure.soundcloud.com",
+          "https://api-auth.soundcloud.com",
+          "https://m.soundcloud.com"
+        ],
+        "values": [
+          {
+            "name": "oauth-token",
+            "source": "cookie",
+            "cookieName": "oauth_token",
+            "domain": "soundcloud.com"
+          }
+        ]
+      }
+    ],
+    "helpers": [
+      {
+        "id": "remux-m4a",
+        "executable": "helper/dist/ffmpeg",
+        "processPriority": "below-normal",
+        "argumentTemplate": [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-nostdin",
+          "-threads",
+          "1",
+          "-i",
+          {
+            "cachePath": "input"
+          },
+          "-map",
+          "0:a:0",
+          "-vn",
+          "-sn",
+          "-dn",
+          "-c:a",
+          "copy",
+          "-map_metadata",
+          "-1",
+          "-movflags",
+          "+faststart",
+          "-f",
+          "ipod",
+          {
+            "cachePath": "output"
+          }
+        ]
+      },
+      {
+        "id": "probe",
+        "executable": "helper/dist/ffmpeg",
+        "processPriority": "below-normal",
+        "argumentTemplate": [
+          "-hide_banner",
+          "-nostdin",
+          "-threads",
+          "1",
+          "-i",
+          {
+            "cachePath": "input"
+          },
+          "-map",
+          "0:a:0",
+          "-f",
+          "null",
+          "-"
+        ]
+      }
+    ]
+  },
+  "build": {
+    "steps": [
+      {
+        "command": "helper/build.sh",
+        "platforms": [
+          "darwin"
+        ]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": "providers/soundcloud/assets",
+        "filter": [
+          "icon.svg"
+        ]
+      },
+      {
+        "from": "helper/dist",
+        "to": "providers/soundcloud/helper/dist"
+      }
+    ],
+    "binaries": [
+      "providers/soundcloud/helper/dist/ffmpeg"
+    ]
+  }
+}
