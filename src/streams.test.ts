@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { parseHlsPlaylist, playableTranscodings, sniffContainer } from './streams'
+import { parseHlsPlaylist, playableTranscodings, sniffContainer, trackAvailability } from './streams'
+import { parseTrack } from './parsers'
+import { track } from './fixtures'
 
 const media = (path: string) => `https://api-v2.soundcloud.com/media/soundcloud:tracks:1/${path}`
 const transcoding = (preset: string, protocol: string, mime: string, quality = 'sq', extra: Record<string, unknown> = {}) => ({
@@ -111,5 +113,27 @@ describe('sniffContainer', () => {
     const id3 = Buffer.from([0x49, 0x44, 0x33, 4, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0])
     expect(sniffContainer(Buffer.concat([id3, bytes('fLaC')]))).toBe('flac')
     expect(sniffContainer(Buffer.concat([id3, Buffer.from([0xff, 0xfb, 0x90, 0x64])]))).toBe('mp3')
+  })
+})
+
+describe('trackAvailability', () => {
+  it('judges listed tracks by the streams playback would pick', () => {
+    expect(trackAvailability({ policy: 'ALLOW', media: { transcodings: [transcoding('mp3_1_0', 'progressive', 'audio/mpeg')] } }))
+      .toEqual({ playable: true, unavailableReason: null })
+    expect(trackAvailability({ policy: 'SNIP', media: { transcodings: [transcoding('mp3_1_0', 'hls', 'audio/mpeg', 'sq', { snipped: true })] } }))
+      .toEqual({ playable: false, unavailableReason: 'subscription' })
+    expect(trackAvailability({ media: { transcodings: [transcoding('aac_160k', 'cbc-encrypted-hls', AAC)] } }))
+      .toEqual({ playable: false, unavailableReason: 'unsupported' })
+  })
+
+  it('falls back to the policy, and says nothing for stubs', () => {
+    expect(trackAvailability({ policy: 'BLOCK' })).toEqual({ playable: false, unavailableReason: 'region' })
+    expect(trackAvailability({ policy: 'SNIP' })).toEqual({ playable: false, unavailableReason: 'subscription' })
+    expect(trackAvailability({ policy: 'ALLOW', streamable: false })).toEqual({ playable: false, unavailableReason: 'other' })
+    expect(trackAvailability({ id: 1, kind: 'track', policy: 'ALLOW' })).toEqual({})
+  })
+
+  it('reaches parsed tracks', () => {
+    expect(parseTrack(track(1, 'Blocked', { policy: 'BLOCK', media: { transcodings: [] } }))).toMatchObject({ playable: false, unavailableReason: 'region' })
   })
 })

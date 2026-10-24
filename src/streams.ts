@@ -1,3 +1,4 @@
+import { ProviderApiError, providerError, type ProviderTrackUnavailableReasonV1, type ProviderTrackV1 } from 'puros-provider-sdk'
 import { apiError } from './api'
 import { asArray, asNumber, asRecord, asString } from './json'
 
@@ -80,17 +81,47 @@ export function rankTranscodings(transcodings: Transcoding[]): Transcoding[] {
   return [...transcodings].sort((a, b) => score(b) - score(a))
 }
 
+const UNAVAILABLE_REASONS: Record<StreamUnavailableReason, ProviderTrackUnavailableReasonV1> = {
+  'preview-only': 'subscription',
+  'drm-only': 'unsupported',
+  blocked: 'region',
+  none: 'unsupported',
+}
+
+const UNAVAILABLE_MESSAGES: Record<StreamUnavailableReason, string> = {
+  'preview-only': 'SoundCloud offers only a 30-second preview of this track to this account (it needs SoundCloud Go+)',
+  'drm-only': 'SoundCloud streams this track only with DRM, which Puros cannot play',
+  blocked: 'This track is not available on SoundCloud in your country',
+  none: 'SoundCloud offered no playable stream for this track',
+}
+
+/** Core greys the track out and skips it. */
 export function unavailableError(reason: StreamUnavailableReason) {
-  switch (reason) {
-    case 'preview-only':
-      return apiError('PERMISSION_DENIED', 'SoundCloud offers only a 30-second preview of this track to this account (it needs SoundCloud Go+)')
-    case 'drm-only':
-      return apiError('NOT_SUPPORTED', 'SoundCloud streams this track only with DRM, which Puros cannot play')
-    case 'blocked':
-      return apiError('NOT_FOUND', 'This track is not available on SoundCloud in your country')
-    default:
-      return apiError('NOT_SUPPORTED', 'SoundCloud offered no playable stream for this track')
+  return new ProviderApiError(providerError('TRACK_UNAVAILABLE', UNAVAILABLE_MESSAGES[reason], {
+    retryable: false,
+    details: { reason: UNAVAILABLE_REASONS[reason] },
+  }))
+}
+
+/**
+ * Whether a listed track will stream to this account, judged the way playback
+ * picks a stream; the `policy` field alone when the object has no media.
+ * Empty when SoundCloud said nothing (playlist stubs).
+ */
+export function trackAvailability(track: unknown): Pick<ProviderTrackV1, 'playable' | 'unavailableReason'> {
+  const record = asRecord(track)
+  if (!record) return {}
+  if (asArray(asRecord(record.media)?.transcodings).length > 0) {
+    const { transcodings, reason } = playableTranscodings(record)
+    return transcodings.length > 0
+      ? { playable: true, unavailableReason: null }
+      : { playable: false, unavailableReason: UNAVAILABLE_REASONS[reason] }
   }
+  const policy = asString(record.policy)?.toUpperCase()
+  if (policy === 'BLOCK') return { playable: false, unavailableReason: 'region' }
+  if (policy === 'SNIP') return { playable: false, unavailableReason: 'subscription' }
+  if (record.streamable === false) return { playable: false, unavailableReason: 'other' }
+  return {}
 }
 
 export interface HlsPlaylist {

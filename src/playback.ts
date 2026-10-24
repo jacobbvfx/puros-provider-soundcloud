@@ -156,6 +156,8 @@ export class SoundCloudPlayback {
     try {
       return await this.resolve({ ...request, intent: 'prefetch', sessionId: undefined })
     } catch (error) {
+      // Core greys out and skips a track SoundCloud will not stream; other failures just skip the prefetch.
+      if (errorCode(error) === 'TRACK_UNAVAILABLE') throw error
       if (errorCode(error) !== 'CANCELLED') {
         await this.host.logger.info('SoundCloud prefetch skipped', { sourceId: request.sourceId, code: errorCode(error) }).catch(() => {})
       }

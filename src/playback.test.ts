@@ -158,10 +158,10 @@ describe('SoundCloudPlayback', () => {
 
   it('refuses previews and DRM-only tracks with typed errors', async () => {
     const preview = setup({ transcodings: [transcoding('mp3_1_0', 'hls', 'audio/mpeg', { snipped: true })], trackExtra: { policy: 'SNIP' } })
-    await expect(preview.playback.resolve({ sourceId: '1', intent: 'playback' })).rejects.toMatchObject({ providerError: { code: 'PERMISSION_DENIED' } })
+    await expect(preview.playback.resolve({ sourceId: '1', intent: 'playback' })).rejects.toMatchObject({ providerError: { code: 'TRACK_UNAVAILABLE', details: { reason: 'subscription' } } })
     const drm = setup({ transcodings: [transcoding('aac_160k', 'cbc-encrypted-hls', AAC)] })
-    await expect(drm.playback.resolve({ sourceId: '1', intent: 'playback' })).rejects.toMatchObject({ providerError: { code: 'NOT_SUPPORTED' } })
-    expect(await drm.playback.prefetch({ sourceId: '1' })).toBeNull()
+    await expect(drm.playback.resolve({ sourceId: '1', intent: 'playback' })).rejects.toMatchObject({ providerError: { code: 'TRACK_UNAVAILABLE', details: { reason: 'unsupported' } } })
+    await expect(drm.playback.prefetch({ sourceId: '1' })).rejects.toMatchObject({ providerError: { code: 'TRACK_UNAVAILABLE' } })
   })
 
   it('renews an expired media address and retries', async () => {

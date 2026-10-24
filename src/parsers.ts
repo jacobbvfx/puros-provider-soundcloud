@@ -10,6 +10,7 @@ import type {
 } from 'puros-provider-sdk'
 import { isSystemPlaylistUrn } from './ids'
 import { asArray, asId, asNumber, asRecord, asString, yearOf, type JsonRecord } from './json'
+import { trackAvailability } from './streams'
 
 /** Renditions are named by a suffix before the extension (`-large.jpg`, `-t500x500.jpg`, `-original.png`). */
 const ARTWORK_SUFFIX = /-(?:[0-9a-z]+)\.(?:jpg|jpeg|png)$/i
@@ -130,6 +131,7 @@ export function parseTrack(value: unknown, context: TrackContext = {}): Provider
     genres: genres(track.genre),
     artworkUrl: artworkUrl(track.artwork_url) ?? artworkUrl(asRecord(track.user)?.avatar_url),
     providerUrl: soundcloudUrl(track.permalink_url),
+    ...trackAvailability(track),
   }
 }
 
